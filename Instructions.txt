@@ -1,0 +1,46 @@
+I have a strict budget of ₹0 for cloud services and do not want to enter payment details or configure AWS cloud credentials.
+
+Convert my existing E-Cycle project to the zero-cost **Build It** approach for the Environmental Hacks hackathon.
+
+IMPORTANT: Do not delete or rewrite the project unnecessarily. Do not run `aws configure`, `sam deploy`, or any command that creates cloud resources.
+
+Tasks:
+
+1. Inspect the existing frontend, backend, AWS SAM template, and package files.
+
+2. Check whether Docker is installed and running. AWS SAM CLI is already installed. If Docker is unavailable, tell me what is missing rather than installing anything without asking.
+
+3. Configure the backend so I can run and test its Lambda functions locally using AWS SAM CLI and `sam local start-api`, when Docker is available.
+
+4. Remove the requirement for AWS cloud credentials during local development. Use local implementations for storage and processing rather than making real requests to S3, Rekognition, or DynamoDB.
+
+5. Keep the E-Cycle features working:
+
+   * Upload and preview an electronic-item photo.
+   * Select or confirm the item's category.
+   * Classify the selected item using transparent rules.
+   * Show the appropriate e-waste handling guide.
+   * Save items and display them under My E-Waste.
+   * Update or delete saved items.
+
+6. Do not pretend that a local classifier is Amazon Rekognition. If real image recognition is unavailable, use manual identification and clearly explain that limitation.
+
+7. Store demo records locally. Do not falsely claim that data is stored in DynamoDB.
+
+8. Connect the frontend to the local API where appropriate. Configure clear development commands for starting the frontend and backend.
+
+9. Run the frontend build and available tests. Fix errors and verify the main user journey.
+
+10. Update README.md to explain the zero-cost architecture, how AWS SAM CLI is used, how to run the project, what is simulated or local, and which features are not connected to AWS cloud services.
+
+11. Do not deploy anything, create paid resources, or request payment details.
+
+At the end, tell me:
+
+* What you changed.
+* Which tests passed.
+* The exact commands I should run.
+* The local website URL.
+* Any remaining limitations.
+
+Work iteratively: inspect → implement → run → test → fix → verify.

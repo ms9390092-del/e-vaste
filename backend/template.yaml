@@ -1,0 +1,379 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: E-Cycle - Smart E-Waste Assistant Backend
+
+Globals:
+  Function:
+    Timeout: 30
+    Runtime: nodejs20.x
+    Environment:
+      Variables:
+        AWS_REGION: !Ref AWS::Region
+        ALLOWED_ORIGIN: !Ref AllowedOrigin
+    Architectures:
+      - arm64
+    Tracing: Active
+
+Parameters:
+  AllowedOrigin:
+    Type: String
+    Default: '*'
+    Description: CORS allowed origin for API Gateway
+  StageName:
+    Type: String
+    Default: prod
+    Description: API Gateway stage name
+
+Resources:
+  # S3 Bucket for image uploads
+  ImageBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldUploads
+            Status: Enabled
+            ExpirationInDays: 30
+            Filter:
+              Prefix: uploads/
+
+  # DynamoDB Table for saved items
+  ItemsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: ecycle-items
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+
+  # DynamoDB Table for disposal locations (optional)
+  DisposalLocationsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: ecycle-disposal-locations
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: city
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: CityIndex
+          KeySchema:
+            - AttributeName: city
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      SSESpecification:
+        SSEEnabled: true
+
+  # IAM Role for Lambda functions
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: E-CycleLambdaPermissions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:DeleteObject
+                Resource: !Sub ${ImageBucket.Arn}/uploads/*
+              - Effect: Allow
+                Action:
+                  - rekognition:DetectLabels
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:Scan
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                Resource:
+                  - !GetAtt ItemsTable.Arn
+                  - !GetAtt DisposalLocationsTable.Arn
+              - Effect: Allow
+                Action:
+                  - xray:PutTraceSegments
+                  - xray:PutTelemetryRecords
+                Resource: '*'
+
+  # API Gateway
+  ApiGateway:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: !Ref StageName
+      Cors:
+        AllowMethods: "'GET,POST,PATCH,DELETE,OPTIONS'"
+        AllowHeaders: "'Content-Type,Authorization'"
+        AllowOrigin: !Ref AllowedOrigin
+        MaxAge: "'3600'"
+      Auth:
+        DefaultAuthorizer: NONE
+        ApiKeyRequired: false
+      DefinitionBody:
+        openapi: 3.0.1
+        info:
+          title: E-Cycle API
+          version: 1.0.0
+        paths:
+          /analyze:
+            post:
+              summary: Analyze image with Rekognition
+              x-amazon-apigateway-integration:
+                uri:
+                  Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AnalyzeImageFunction.Arn}/invocations
+                httpMethod: POST
+                payloadFormatVersion: "2.0"
+                type: aws_proxy
+            options:
+              x-amazon-apigateway-integration:
+                type: mock
+                requestTemplates:
+                  application/json: '{"statusCode": 200}'
+                responses:
+                  "200":
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+              responses:
+                "200":
+                  description: OK
+          /items:
+            get:
+              summary: List all saved items
+              x-amazon-apigateway-integration:
+                uri:
+                  Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ItemsFunction.Arn}/invocations
+                httpMethod: POST
+                payloadFormatVersion: "2.0"
+                type: aws_proxy
+            post:
+              summary: Create new item
+              x-amazon-apigateway-integration:
+                uri:
+                  Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ItemsFunction.Arn}/invocations
+                httpMethod: POST
+                payloadFormatVersion: "2.0"
+                type: aws_proxy
+            options:
+              x-amazon-apigateway-integration:
+                type: mock
+              responses:
+                "200":
+                  description: OK
+          /items/{id}:
+            get:
+              summary: Get single item
+              x-amazon-apigateway-integration:
+                uri:
+                  Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ItemsFunction.Arn}/invocations
+                httpMethod: POST
+                payloadFormatVersion: "2.0"
+                type: aws_proxy
+              parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            patch:
+              summary: Update item
+              x-amazon-apigateway-integration:
+                uri:
+                  Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ItemsFunction.Arn}/invocations
+                httpMethod: POST
+                payloadFormatVersion: "2.0"
+                type: aws_proxy
+              parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            delete:
+              summary: Delete item
+              x-amazon-apigateway-integration:
+                uri:
+                  Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ItemsFunction.Arn}/invocations
+                httpMethod: POST
+                payloadFormatVersion: "2.0"
+                type: aws_proxy
+              parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            options:
+              x-amazon-apigateway-integration:
+                type: mock
+              responses:
+                "200":
+                  description: OK
+          /disposal:
+            get:
+              summary: Find disposal options
+              x-amazon-apigateway-integration:
+                uri:
+                  Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DisposalFinderFunction.Arn}/invocations
+                httpMethod: POST
+                payloadFormatVersion: "2.0"
+                type: aws_proxy
+              parameters:
+                - name: type
+                  in: query
+                  required: true
+                  schema:
+                    type: string
+                - name: location
+                  in: query
+                  required: true
+                  schema:
+                    type: string
+            options:
+              x-amazon-apigateway-integration:
+                type: mock
+              responses:
+                "200":
+                  description: OK
+          /assistant:
+            post:
+              summary: Ask E-Cycle assistant
+              x-amazon-apigateway-integration:
+                uri:
+                  Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AssistantFunction.Arn}/invocations
+                httpMethod: POST
+                payloadFormatVersion: "2.0"
+                type: aws_proxy
+            options:
+              x-amazon-apigateway-integration:
+                type: mock
+              responses:
+                "200":
+                  description: OK
+
+  # Lambda Functions
+  AnalyzeImageFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/
+      Handler: analyze-image.handler
+      Environment:
+        Variables:
+          S3_BUCKET_NAME: !Ref ImageBucket
+      Policies:
+        - S3WritePolicy:
+            BucketName: !Ref ImageBucket
+        - RekognitionDetectLabelsPolicy: {}
+
+  ItemsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/
+      Handler: items.handler
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME: !Ref ItemsTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ItemsTable
+
+  DisposalFinderFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/
+      Handler: disposal-finder.handler
+      Environment:
+        Variables:
+          DISPOSAL_TABLE_NAME: !Ref DisposalLocationsTable
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref DisposalLocationsTable
+
+  AssistantFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/
+      Handler: assistant.handler
+
+  # API Gateway Permissions
+  AnalyzeImagePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref AnalyzeImageFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/POST/analyze
+
+  ItemsPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ItemsFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/POST/items*
+
+  DisposalFinderPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref DisposalFinderFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/GET/disposal
+
+  AssistantPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref AssistantFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/POST/assistant
+
+Outputs:
+  ApiUrl:
+    Description: API Gateway URL
+    Value: !Sub https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/${StageName}
+  ImageBucketName:
+    Description: S3 Bucket for image uploads
+    Value: !Ref ImageBucket
+  ItemsTableName:
+    Description: DynamoDB Table for items
+    Value: !Ref ItemsTable
+  DisposalLocationsTableName:
+    Description: DynamoDB Table for disposal locations
+    Value: !Ref DisposalLocationsTable
