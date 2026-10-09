@@ -2,6 +2,7 @@ import express from 'express'
 import cors from 'cors'
 import { fileURLToPath } from 'url'
 import { dirname } from 'path'
+import crypto from 'crypto'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -159,6 +160,10 @@ app.post('/api/assistant', async (req, res) => {
 
 await loadHandlers()
 
-app.listen(PORT, () => {
-  console.log(`E-Cycle backend running on http://localhost:${PORT} (${IS_LOCAL ? 'local mock' : 'production'})`)
-})
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`E-Cycle backend running on http://localhost:${PORT} (${IS_LOCAL ? 'local mock' : 'production'})`)
+  })
+}
+
+export default app
