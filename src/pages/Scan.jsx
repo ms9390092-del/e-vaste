@@ -202,16 +202,8 @@ export default function Scan() {
   }
 
   const getMockAnalysis = (fileName) => {
-    // Deterministic mock based on filename for demo
-    const mockLabels = [
-      { Name: 'Cell Phone', Confidence: 94 },
-      { Name: 'Electronics', Confidence: 89 },
-      { Name: 'Mobile Phone', Confidence: 92 },
-      { Name: 'Screen', Confidence: 78 },
-      { Name: 'Display', Confidence: 75 }
-    ]
+    const lowerName = (fileName || '').toLowerCase()
 
-    const lowerName = fileName.toLowerCase()
     if (lowerName.includes('laptop') || lowerName.includes('macbook')) {
       return { labels: [
         { Name: 'Laptop', Confidence: 96 },
@@ -245,7 +237,7 @@ export default function Scan() {
         { Name: 'Cable', Confidence: 70 }
       ]}
     }
-    if (lowerName.includes('headphone') || lowerName.includes('earphone') || lowerName.includes('earbud')) {
+    if (lowerName.includes('headphone') || lowerName.includes('earphone') || lowerName.includes('earbud') || lowerName.includes('airpod')) {
       return { labels: [
         { Name: 'Headphones', Confidence: 91 },
         { Name: 'Earphones', Confidence: 87 },
@@ -253,8 +245,64 @@ export default function Scan() {
         { Name: 'Audio Equipment', Confidence: 76 }
       ]}
     }
+    if (lowerName.includes('phone') || lowerName.includes('mobile') || lowerName.includes('iphone') || lowerName.includes('android') || lowerName.includes('smartphone')) {
+      return { labels: [
+        { Name: 'Cell Phone', Confidence: 94 },
+        { Name: 'Electronics', Confidence: 89 },
+        { Name: 'Mobile Phone', Confidence: 92 },
+        { Name: 'Screen', Confidence: 78 },
+        { Name: 'Display', Confidence: 75 }
+      ]}
+    }
+    if (lowerName.includes('battery') || lowerName.includes('powerbank') || lowerName.includes('power-bank')) {
+      return { labels: [
+        { Name: 'Battery', Confidence: 90 },
+        { Name: 'Power Bank', Confidence: 85 },
+        { Name: 'Electronics', Confidence: 80 }
+      ]}
+    }
+    if (lowerName.includes('camera') || lowerName.includes('webcam') || lowerName.includes('dslr')) {
+      return { labels: [
+        { Name: 'Camera', Confidence: 92 },
+        { Name: 'Electronics', Confidence: 88 },
+        { Name: 'Lens', Confidence: 75 }
+      ]}
+    }
+    if (lowerName.includes('printer') || lowerName.includes('scanner')) {
+      return { labels: [
+        { Name: 'Printer', Confidence: 91 },
+        { Name: 'Electronics', Confidence: 85 },
+        { Name: 'Office Equipment', Confidence: 78 }
+      ]}
+    }
+    if (lowerName.includes('keyboard')) {
+      return { labels: [
+        { Name: 'Keyboard', Confidence: 94 },
+        { Name: 'Electronics', Confidence: 88 },
+        { Name: 'Computer Accessory', Confidence: 82 }
+      ]}
+    }
+    if (lowerName.includes('mouse') || lowerName.includes('trackpad')) {
+      return { labels: [
+        { Name: 'Mouse', Confidence: 93 },
+        { Name: 'Electronics', Confidence: 87 },
+        { Name: 'Computer Accessory', Confidence: 80 }
+      ]}
+    }
+    if (lowerName.includes('cable') || lowerName.includes('cord') || lowerName.includes('usb') || lowerName.includes('hdmi')) {
+      return { labels: [
+        { Name: 'Cable', Confidence: 90 },
+        { Name: 'Electronics', Confidence: 85 },
+        { Name: 'Wire', Confidence: 78 }
+      ]}
+    }
 
-    return { labels: mockLabels }
+    // Default for unrecognized filenames (e.g. IMG_2041.jpg): generic electronics
+    return { labels: [
+      { Name: 'Electronics', Confidence: 85 },
+      { Name: 'Electronic Device', Confidence: 80 },
+      { Name: 'Gadget', Confidence: 72 }
+    ]}
   }
 
   const handleSave = () => {
@@ -347,7 +395,7 @@ export default function Scan() {
           </div>
         </div>
         <h2 className="heading-4 mb-2">
-          {state === 'uploading' ? 'Uploading Image...' : 'Analyzing with AWS Rekognition...'}
+          {state === 'uploading' ? 'Uploading Image...' : 'Analyzing Image...'}
         </h2>
         <p className="text-body-sm mb-6">This usually takes a few seconds</p>
         <div className="w-64 mx-auto">
@@ -469,7 +517,7 @@ export default function Scan() {
       <div className="container py-8 sm:py-12">
         <div className="mb-8">
           <h1 className="heading-2">Scan an Item</h1>
-          <p className="mt-2 text-body-sm">Upload a photo of your electronic device for AI-powered identification</p>
+          <p className="mt-2 text-body-sm">Upload a photo of your electronic device for smart identification</p>
         </div>
 
         <div className="space-y-6">

@@ -4,10 +4,18 @@ import { MANUAL_CATEGORIES, getManualCategory } from '../utils/classification'
 import { addStoredItem } from '../services/storage'
 import { CATEGORY_GUIDANCE } from '../data/ewaste'
 
-const CategoryCard = ({ category, isSelected, onSelect }) => (
-  <button
+const CategoryCard = ({ category, isSelected, onSelect, onViewGuide, onSave }) => (
+  <div
+    role="button"
+    tabIndex={0}
     onClick={() => onSelect(category.id)}
-    className={`card-hover p-6 text-left transition-all relative overflow-hidden ${
+    onKeyDown={(e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault()
+        onSelect(category.id)
+      }
+    }}
+    className={`card-hover p-6 text-left transition-all relative overflow-hidden cursor-pointer ${
       isSelected
         ? 'ring-2 ring-eco-500 bg-eco-50 border-eco-200'
         : ''
@@ -27,20 +35,28 @@ const CategoryCard = ({ category, isSelected, onSelect }) => (
     {isSelected && (
       <div className="mt-4 pt-4 border-t border-eco-200 flex gap-2 relative z-10 animate-slide-up">
         <button
-          onClick={(e) => { e.stopPropagation(); onSelect(category.id); }}
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            onViewGuide(category.id)
+          }}
           className="btn-secondary btn-sm flex-1"
         >
           View Guide
         </button>
         <button
-          onClick={(e) => { e.stopPropagation(); onSelect(category.id); }}
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            onSave(category.id)
+          }}
           className="btn-primary btn-sm flex-1"
         >
           Save Item
         </button>
       </div>
     )}
-  </button>
+  </div>
 )
 
 const GuidanceSection = ({ title, icon, iconColor, children, className = '' }) => (
@@ -93,10 +109,11 @@ export default function ManualIdentify() {
     setShowGuidance(false)
   }
 
-  const handleSave = () => {
-    if (!selectedCategory) return
+  const handleSave = (catId) => {
+    const idToUse = catId || selectedCategory
+    if (!idToUse) return
 
-    const category = getManualCategory(selectedCategory)
+    const category = getManualCategory(idToUse)
     const saved = addStoredItem({
       categoryId: category.id,
       categoryName: category.name,
@@ -111,8 +128,12 @@ export default function ManualIdentify() {
     navigate(`/result/${saved.id}`)
   }
 
-  const handleViewGuide = () => {
-    if (selectedCategory) {
+  const handleViewGuide = (catId) => {
+    const idToUse = catId || selectedCategory
+    if (idToUse) {
+      if (catId && catId !== selectedCategory) {
+        setSelectedCategory(catId)
+      }
       setShowGuidance(true)
     }
   }
@@ -135,6 +156,8 @@ export default function ManualIdentify() {
                 category={category}
                 isSelected={selectedCategory === category.id}
                 onSelect={handleCategorySelect}
+                onViewGuide={handleViewGuide}
+                onSave={handleSave}
               />
             ))}
           </div>

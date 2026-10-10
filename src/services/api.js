@@ -27,17 +27,25 @@ async function request(endpoint, options = {}) {
 
 export const api = {
   async analyzeImage(file) {
-    const formData = new FormData()
-    formData.append('image', file)
-
-    const response = await fetch(`${API_BASE}/analyze`, {
-      method: 'POST',
-      body: formData
+    const base64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const result = reader.result
+        const commaIndex = typeof result === 'string' ? result.indexOf(',') : -1
+        resolve(commaIndex !== -1 ? result.slice(commaIndex + 1) : result)
+      }
+      reader.onerror = reject
+      reader.readAsDataURL(file)
     })
 
-    const data = await response.json()
-    if (!response.ok) throw new Error(data.error || 'Analysis failed')
-    return data
+    return request('/analyze', {
+      method: 'POST',
+      body: JSON.stringify({
+        imageBase64: base64,
+        fileName: file.name || 'image.jpg',
+        contentType: file.type || 'image/jpeg'
+      })
+    })
   },
 
   async saveItem(item) {
